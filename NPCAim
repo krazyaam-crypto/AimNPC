@@ -1,23 +1,21 @@
 -- SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 
 -- SETTINGS
-local AIM = false
+local AIM = true
 local target = nil
 
--- 🎯 LẤY NPC GẦN NHẤT
+-- 🎯 TÌM NPC GẦN NHẤT
 local function getClosestNPC()
 	local closest, dist = nil, math.huge
 	
 	for _,v in pairs(workspace:GetDescendants()) do
 		if v:IsA("Model")
-		and v:FindFirstChild("Humanoid")
 		and v:FindFirstChild("HumanoidRootPart")
+		and v:FindFirstChild("Humanoid")
 		and v.Humanoid.Health > 0
 		and not Players:GetPlayerFromCharacter(v) then
 			
@@ -33,43 +31,71 @@ local function getClosestNPC()
 	return closest
 end
 
--- 🎯 AIM LOOP (KHÓA CỨNG)
+-- 🔄 AUTO UPDATE TARGET
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		
+		local char = player.Character
+		if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
+		
+		-- nếu target chết hoặc mất
+		if not target 
+		or not target:FindFirstChild("Humanoid")
+		or target.Humanoid.Health <= 0 then
+			
+			target = getClosestNPC()
+		end
+		
+		-- nếu không có NPC → tắt
+		if not target then
+			AIM = false
+		else
+			AIM = true
+		end
+	end
+end)
+
+-- 🎯 AIM MƯỢT (KHÔNG XOAY CAMERA)
 RunService.RenderStepped:Connect(function()
 	if AIM and target and target:FindFirstChild("HumanoidRootPart") then
-		camera.CFrame = CFrame.new(camera.CFrame.Position, target.HumanoidRootPart.Position)
+		
+		local char = player.Character
+		if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+		
+		local root = char.HumanoidRootPart
+		local tRoot = target.HumanoidRootPart
+		
+		-- xoay mượt
+		root.CFrame = root.CFrame:Lerp(
+			CFrame.new(root.Position, tRoot.Position),
+			0.25
+		)
 	end
 end)
 
--- 🔘 TOGGLE AIM
+-- 🔘 GUI NHỎ
 local gui = Instance.new("ScreenGui", game.CoreGui)
-gui.Name = "AIMNPC"
 
-local btn = Instance.new("TextButton", gui)
-btn.Size = UDim2.new(0,150,0,50)
-btn.Position = UDim2.new(0.4,0,0.3,0)
-btn.Text = "AIM NPC: OFF"
-btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-btn.TextColor3 = Color3.new(1,1,1)
+local label = Instance.new("TextLabel", gui)
+label.Size = UDim2.new(0,200,0,50)
+label.Position = UDim2.new(0,10,0,200)
+label.BackgroundColor3 = Color3.fromRGB(30,30,30)
+label.TextColor3 = Color3.new(1,1,1)
+label.Font = Enum.Font.GothamBold
+label.TextScaled = true
 
-btn.MouseButton1Click:Connect(function()
-	AIM = not AIM
-	btn.Text = "AIM NPC: "..(AIM and "ON" or "OFF")
-	
-	if AIM then
-		target = getClosestNPC()
-	end
-end)
-
--- 🔁 ĐỔI TARGET (G)
-UIS.InputBegan:Connect(function(input, gp)
-	if not gp and input.KeyCode == Enum.KeyCode.G then
-		target = getClosestNPC()
-	end
-end)
-
--- ♻️ RESET AIM (R)
-UIS.InputBegan:Connect(function(input, gp)
-	if not gp and input.KeyCode == Enum.KeyCode.R then
-		target = nil
+-- UPDATE TEXT
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		
+		if AIM and target then
+			label.Text = "AIM: "..target.Name
+		elseif not target then
+			label.Text = "AIM: WAITING NPC..."
+		else
+			label.Text = "AIM: OFF"
+		end
 	end
 end)
