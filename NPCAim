@@ -5,21 +5,26 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 -- SETTINGS
-local AIM = true
 local target = nil
 
--- 🎯 TÌM NPC GẦN NHẤT
+-- 🎯 GET NPC GẦN NHẤT (ỔN ĐỊNH)
 local function getClosestNPC()
-	local closest, dist = nil, math.huge
+	local char = player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
 	
-	for _,v in pairs(workspace:GetDescendants()) do
+	local root = char.HumanoidRootPart
+	
+	local closest = nil
+	local dist = math.huge
+	
+	for _,v in ipairs(workspace:GetDescendants()) do
 		if v:IsA("Model")
 		and v:FindFirstChild("HumanoidRootPart")
 		and v:FindFirstChild("Humanoid")
 		and v.Humanoid.Health > 0
 		and not Players:GetPlayerFromCharacter(v) then
 			
-			local d = (player.Character.HumanoidRootPart.Position - v.HumanoidRootPart.Position).Magnitude
+			local d = (root.Position - v.HumanoidRootPart.Position).Magnitude
 			
 			if d < dist then
 				dist = d
@@ -31,54 +36,55 @@ local function getClosestNPC()
 	return closest
 end
 
--- 🔄 AUTO UPDATE TARGET
+-- 🔄 UPDATE TARGET (KHÔNG BỊ LỖI)
 task.spawn(function()
 	while true do
-		task.wait(0.5)
+		task.wait(0.3)
 		
-		local char = player.Character
-		if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
-		
-		-- nếu target chết hoặc mất
-		if not target 
+		if not target
 		or not target:FindFirstChild("Humanoid")
 		or target.Humanoid.Health <= 0 then
 			
 			target = getClosestNPC()
 		end
+	end
+end)
+
+-- 🎯 AIM LOCK MƯỢT (KHÔNG GIẬT)
+RunService.RenderStepped:Connect(function()
+	if not target then return end
+	
+	local char = player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+	
+	local root = char.HumanoidRootPart
+	local tRoot = target:FindFirstChild("HumanoidRootPart")
+	if not tRoot then return end
+	
+	-- 🔥 LOCK CỨNG NHƯNG MƯỢT
+	root.CFrame = root.CFrame:Lerp(
+		CFrame.new(root.Position, tRoot.Position),
+		0.35
+	)
+end)
+
+-- 🧠 AUTO STOP / RESUME
+task.spawn(function()
+	while true do
+		task.wait(1)
 		
-		-- nếu không có NPC → tắt
-		if not target then
-			AIM = false
-		else
-			AIM = true
+		-- nếu không có quái → clear target
+		if not getClosestNPC() then
+			target = nil
 		end
 	end
 end)
 
--- 🎯 AIM MƯỢT (KHÔNG XOAY CAMERA)
-RunService.RenderStepped:Connect(function()
-	if AIM and target and target:FindFirstChild("HumanoidRootPart") then
-		
-		local char = player.Character
-		if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-		
-		local root = char.HumanoidRootPart
-		local tRoot = target.HumanoidRootPart
-		
-		-- xoay mượt
-		root.CFrame = root.CFrame:Lerp(
-			CFrame.new(root.Position, tRoot.Position),
-			0.25
-		)
-	end
-end)
-
--- 🔘 GUI NHỎ
+-- 🖥️ UI STATUS
 local gui = Instance.new("ScreenGui", game.CoreGui)
 
 local label = Instance.new("TextLabel", gui)
-label.Size = UDim2.new(0,200,0,50)
+label.Size = UDim2.new(0,220,0,50)
 label.Position = UDim2.new(0,10,0,200)
 label.BackgroundColor3 = Color3.fromRGB(30,30,30)
 label.TextColor3 = Color3.new(1,1,1)
@@ -86,16 +92,10 @@ label.Font = Enum.Font.GothamBold
 label.TextScaled = true
 
 -- UPDATE TEXT
-task.spawn(function()
-	while true do
-		task.wait(0.2)
-		
-		if AIM and target then
-			label.Text = "AIM: "..target.Name
-		elseif not target then
-			label.Text = "AIM: WAITING NPC..."
-		else
-			label.Text = "AIM: OFF"
-		end
+RunService.RenderStepped:Connect(function()
+	if target then
+		label.Text = "LOCK: "..target.Name
+	else
+		label.Text = "WAITING NPC..."
 	end
 end)
